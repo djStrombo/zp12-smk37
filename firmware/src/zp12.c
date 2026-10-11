@@ -307,17 +307,11 @@ static void zp12_main(void)
             /* Cursors / Page Nav */
             if (b & (1u << ACT_PREV)) {
                 b &= ~(1u << ACT_PREV);
-                if (ui.steps) { if (ui.step_bar) ui.step_bar--; }
-                else if (ui.page > PG_HOME) page(ui.page - 1u);
-                else ui.pair = 0;
-                ui.force = 1;
+                button(B_OCTDN);
             }
             if (b & (1u << ACT_NEXT)) {
                 b &= ~(1u << ACT_NEXT);
-                if (ui.steps) { if (ui.step_bar + 1u < (sq_song_mode ? sq_song_len[sq_song_sel] : sq.seg_len)) ui.step_bar++; }
-                else if (ui.page + 1u < PG_N) page(ui.page + 1u);
-                else ui.pair = 1;
-                ui.force = 1;
+                button(B_OCTUP);
             }
             /* Read physical faders 0..3 */
             {
