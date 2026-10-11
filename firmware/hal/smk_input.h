@@ -31,6 +31,9 @@
 #include "fm1_time.h"
 #include "fm1_gpio.h"
 #include "fm1_cc.h"
+#include "smk_mapping.h"
+
+static uint32_t smk_raw_btn_state;
 
 #ifndef FM1_INPUT_IDLE
 #define FM1_INPUT_IDLE() ((void)0)
@@ -358,20 +361,37 @@ static void smk__buttons(void)
 {
     uint32_t i;
     for (i = 0; i < FM1_NBTN; i++) {
-        uint32_t closed = smk__closed(SMK_BTNC[i]), bit = 1u << i, on = (fm1_in.buttons & bit) != 0u;
+        uint32_t closed = smk__closed(SMK_BTNC[i]), bit = 1u << i;
+        uint32_t was_down = (smk_raw_btn_state & bit) != 0u;
         volatile uint8_t *c = &fm1_in.cnt[i];
-        if (closed == on) {
+        if (closed == was_down) {
             *c = 0;
             continue;
         }
-        if (++*c < (on ? SMK_DEB_RELEASE : SMK_DEB_PRESS))
+        if (++*c < (was_down ? SMK_DEB_RELEASE : SMK_DEB_PRESS))
             continue;
         *c = 0;
-        fm1_in.buttons ^= bit;
-        if (!on)
-            fm1_in.pressed |= bit;
-        else
-            fm1_in.released |= bit;
+        smk_raw_btn_state ^= bit;
+        uint8_t act = SMK_BTN_MAP[i];
+        if (act < 32u) {
+            uint32_t lbit = 1u << act;
+            if (!was_down) {
+                fm1_in.buttons |= lbit;
+                fm1_in.pressed |= lbit;
+            } else {
+                uint32_t any_other = 0;
+                for (uint32_t j = 0; j < FM1_NBTN; j++) {
+                    if (j != i && SMK_BTN_MAP[j] == act && (smk_raw_btn_state & (1u << j))) {
+                        any_other = 1;
+                        break;
+                    }
+                }
+                if (!any_other) {
+                    fm1_in.buttons &= ~lbit;
+                    fm1_in.released |= lbit;
+                }
+            }
+        }
     }
 }
 
@@ -640,17 +660,26 @@ static int32_t smk_extkey_take(void)
     return v;
 }
 
-/* LED of button id (0..17); note keys have no LED on the SMK (the pads show the step grid) */
+/* LED of logical button id (0..13); lights physical LED(s) mapped to this action */
 static void fm1_led_key(uint32_t id, int on)
 {
-    if (id < SMK_NLED)
-        fm1_led[id] = (uint8_t)(on != 0);
+    uint32_t i;
+    for (i = 0; i < FM1_NBTN; i++) {
+        if (SMK_BTN_MAP[i] == (uint8_t)id) {
+            if (i < SMK_NLED)
+                fm1_led[i] = (uint8_t)(on != 0);
+        }
+    }
 }
 
-/* fm1_adc.h stand-ins for main.c: the battery comes from mux C; the FM-1's MASTER pot is knob K8 here, as a
- * virtual pot (0..1023, 24 a detent; starts at 724: SLOOP's master_q12 2048, as before) */
+static void smk_led_physical(uint32_t phy_id, int on)
+{
+    if (phy_id < SMK_NLED)
+        fm1_led[phy_id] = (uint8_t)(on != 0);
+}
+
+/* fm1_adc.h stand-ins for main.c: the battery comes from mux C; the FM-1's MASTER pot */
 enum { FM1_ADC_BATT = 3, FM1_ADC_MASTER = 4 };
-#define SMK_ENC_MASTER 0u          /* K1, where the FM-1 has its MASTER pot (top left) */
 static int32_t smk_master = 724;
 static void fm1_adc_init(void) {}
 static int32_t fm1_enc_take(uint32_t e);
@@ -659,8 +688,6 @@ static int32_t fm1_adc_read(uint32_t ch)
     if (ch == FM1_ADC_BATT)
         return fm1_in.batt ? (int32_t)fm1_in.batt : -1;
     if (ch == FM1_ADC_MASTER) {
-        smk_master += fm1_enc_take(SMK_ENC_MASTER) * 24;
-        smk_master = smk_master < 0 ? 0 : smk_master > 1023 ? 1023 : smk_master;
         return smk_master;
     }
     return -1;

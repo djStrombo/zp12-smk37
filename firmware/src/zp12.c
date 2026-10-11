@@ -341,6 +341,36 @@ static void zp12_main(void)
                 fm1_led_key(id, (lb >> id) & 1u);
 #endif
         }
+#if BOARD_SMK37
+        {   /* SMK-37: Encoders mapped via SMK_ENC_MAP (K1..K8) */
+            int32_t d;
+            for (i = 0; i < 8u; i++) {
+                if ((d = fm1_enc_take(i)) != 0) {
+                    uint8_t act = SMK_ENC_MAP[i];
+                    switch (act) {
+                    case ENC_ACT_KNOB1: knob(0, d); break;
+                    case ENC_ACT_KNOB2: knob(1, d); break;
+                    case ENC_ACT_KNOB3: knob(2, d); break;
+                    case ENC_ACT_KNOB4: knob(3, d); break;
+                    case ENC_ACT_TEMPO:
+                        sq.bpm10 = (uint16_t)sp_clamp((int32_t)sq.bpm10 + d * 5, 400, 2400);
+                        break;
+                    case ENC_ACT_PADSEL:
+                        ui.sel = (uint8_t)((ui.sel + SP_NSOUND + (d > 0 ? 1 : SP_NSOUND - 1)) % SP_NSOUND);
+                        break;
+                    case ENC_ACT_SAMPLE:
+                        ui_preset(d);
+                        break;
+                    case ENC_ACT_MASTER:
+                        smk_master = sp_clamp(smk_master + d * 24, 0, 1023);
+                        break;
+                    default:
+                        break;
+                    }
+                }
+            }
+        }
+#else
         {   /* KNOB 1-4 (encoders 2..5), SELECT (0): tempo, ALGORITHM (1): the pad, PRESETS (6): its sample */
             int32_t d;
             for (i = 0; i < 4u; i++)
@@ -353,6 +383,7 @@ static void zp12_main(void)
             if ((d = fm1_enc_take(6)) != 0)
                 ui_preset(d);
         }
+#endif
         while (mi_r != mi_w) {                          /* USB MIDI in: notes 36..67 play the 32 pads, */
             uint32_t pk = midi_in_q[mi_r % MQ], st = (pk >> 8) & 0xF0u, nt = (pk >> 16) & 0x7Fu, vel = pk >> 24 & 0x7Fu;
             mi_r++;                                     /* Program Change 0..15 picks loop 1..16 (as a black key) */
