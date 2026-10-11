@@ -26,41 +26,44 @@
 
 /* ZP-12 Logical Actions */
 #define ACT_NONE    0xFF
-#define ACT_OCTDN   0   /* B_OCTDN */
-#define ACT_OCTUP   1   /* B_OCTUP */
-#define ACT_FX      2   /* B_FX */
-#define ACT_SEL     3   /* B_SEL */
-#define ACT_ENV     4   /* B_ENV */
-#define ACT_LFO     5   /* B_LFO */
-#define ACT_EDIT    6   /* B_EDIT */
-#define ACT_GLO     7   /* B_GLO */
-#define ACT_HOME    8   /* B_HOME */
-#define ACT_SAVE    9   /* B_SAVE */
-#define ACT_ARP     10  /* B_ARP */
-#define ACT_SEQ     11  /* B_SEQ */
-#define ACT_PLAY    12  /* B_PLAY */
-#define ACT_REC     13  /* B_REC */
+#define ACT_OCTDN   0   /* B_OCTDN: Cursor < / Bar- / Bank A+B / Undo */
+#define ACT_OCTUP   1   /* B_OCTUP: Cursor > / Bar+ / Bank C+D / Redo */
+#define ACT_FX      2   /* B_FX: FX / Punch-in */
+#define ACT_SEL     3   /* B_SEL: Select / Shift (Knob Bank) */
+#define ACT_ENV     4   /* B_ENV: Envelope / Tap Tempo */
+#define ACT_LFO     5   /* B_LFO: LFO / Step Erase */
+#define ACT_EDIT    6   /* B_EDIT: Edit Sound */
+#define ACT_GLO     7   /* B_GLO: Global / Mutes */
+#define ACT_HOME    8   /* B_HOME: Home / Mix */
+#define ACT_SAVE    9   /* B_SAVE: Save */
+#define ACT_ARP     10  /* B_ARP: Multi-pitch Scale / Arp */
+#define ACT_SEQ     11  /* B_SEQ: Sequencer / Step Grid */
+#define ACT_PLAY    12  /* B_PLAY: Play / Pause */
+#define ACT_REC     13  /* B_REC: Record / Clear */
+#define ACT_PREV    14  /* Nav Previous Page / Step Bar */
+#define ACT_NEXT    15  /* Nav Next Page / Step Bar */
+#define ACT_FBANK   16  /* Fader Bank Toggle (Sounds 1-4 / 5-8) */
 
 /* Physical button (0..17) to logical action mapping */
 static const uint8_t SMK_BTN_MAP[18] = {
-    ACT_SEL      /* 0: KNOB BANK */,
-    ACT_SAVE     /* 1: FADER BANK */,
-    ACT_OCTDN    /* 2: < (LEFT) */,
-    ACT_OCTUP    /* 3: > (RIGHT) */,
-    ACT_OCTDN    /* 4: OCTAVE- */,
-    ACT_OCTUP    /* 5: OCTAVE+ */,
-    ACT_ARP      /* 6: ARP */,
-    ACT_LFO      /* 7: NOTE REPEAT */,
-    ACT_HOME     /* 8: SCALE */,
-    ACT_ENV      /* 9: CHORD */,
-    ACT_GLO      /* 10: GLOBE */,
-    ACT_NONE     /* 11: BT */,
-    ACT_HOME     /* 12: PATCH */,
-    ACT_EDIT     /* 13: PARA */,
-    ACT_FX       /* 14: FX */,
-    ACT_SEQ      /* 15: SEQ */,
-    ACT_PLAY     /* 16: SEQ PLAY */,
-    ACT_REC      /* 17: SEQ REC */,
+    ACT_SEL,     /* 0: KNOB BANK */
+    ACT_FBANK,   /* 1: FADER BANK */
+    ACT_OCTDN,   /* 2: < (LEFT) */
+    ACT_OCTUP,   /* 3: > (RIGHT) */
+    ACT_OCTDN,   /* 4: OCTAVE- */
+    ACT_OCTUP,   /* 5: OCTAVE+ */
+    ACT_ARP,     /* 6: ARP */
+    ACT_LFO,     /* 7: NOTE REPEAT */
+    ACT_ARP,     /* 8: SCALE (Multi-pitch Scale) */
+    ACT_ENV,     /* 9: CHORD */
+    ACT_GLO,     /* 10: GLOBE */
+    ACT_SAVE,    /* 11: BT (Save fallback) */
+    ACT_HOME,    /* 12: PATCH -> HOME */
+    ACT_EDIT,    /* 13: PARA -> EDIT */
+    ACT_FX,      /* 14: FX */
+    ACT_SEQ,     /* 15: SEQ */
+    ACT_PLAY,    /* 16: SEQ PLAY */
+    ACT_REC,     /* 17: SEQ REC */
 };
 
 /* ZP-12 Logical Encoder Actions */
@@ -76,12 +79,12 @@ static const uint8_t SMK_BTN_MAP[18] = {
 
 /* Physical encoders K1..K8 (indices 0..7) mapping */
 static const uint8_t SMK_ENC_MAP[8] = {
-    ENC_ACT_KNOB1  /* K1 */,
-    ENC_ACT_KNOB2  /* K2 */,
-    ENC_ACT_KNOB3  /* K3 */,
-    ENC_ACT_KNOB4  /* K4 */,
-    ENC_ACT_TEMPO  /* K5 */,
-    ENC_ACT_PADSEL /* K6 */,
-    ENC_ACT_SAMPLE /* K7 */,
-    ENC_ACT_MASTER /* K8 */,
+    ENC_ACT_KNOB1, /* K1 */
+    ENC_ACT_KNOB2, /* K2 */
+    ENC_ACT_KNOB3, /* K3 */
+    ENC_ACT_KNOB4, /* K4 */
+    ENC_ACT_TEMPO, /* K5 */
+    ENC_ACT_PADSEL,/* K6 */
+    ENC_ACT_SAMPLE,/* K7 */
+    ENC_ACT_MASTER,/* K8 */
 };

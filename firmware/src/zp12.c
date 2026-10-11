@@ -288,6 +288,60 @@ static void zp12_main(void)
         }
         b = fm1_input_edges(&rel);
         b = ui_holds(fm1_in.buttons, b, rel);           /* REC held: CLEAR; SAVE tapped / held + a black key */
+#if BOARD_SMK37
+        /* Shift (KNOB BANK / B_SEL) held + Home (PATCH / B_HOME) tapped: triggers SAVE */
+        if (((fm1_in.buttons >> B_SEL) & 1u) && (b & (1u << B_HOME))) {
+            b &= ~(1u << B_HOME);
+            b |= (1u << B_SAVE);
+        }
+        /* Fader Bank button: toggles sounds 1-4 vs 5-8 */
+        {
+            static uint8_t smk_fader_bank = 0;
+            if (b & (1u << ACT_FBANK)) {
+                b &= ~(1u << ACT_FBANK);
+                smk_fader_bank ^= 1u;
+                smk_led_physical(1, smk_fader_bank);
+                ui_say(smk_fader_bank ? "FADERS 5-8" : "FADERS 1-4");
+                ui.force = 1;
+            }
+            /* Cursors / Page Nav */
+            if (b & (1u << ACT_PREV)) {
+                b &= ~(1u << ACT_PREV);
+                if (ui.steps) { if (ui.step_bar) ui.step_bar--; }
+                else if (ui.page > PG_HOME) page(ui.page - 1u);
+                else ui.pair = 0;
+                ui.force = 1;
+            }
+            if (b & (1u << ACT_NEXT)) {
+                b &= ~(1u << ACT_NEXT);
+                if (ui.steps) { if (ui.step_bar + 1u < (sq_song_mode ? sq_song_len[sq_song_sel] : sq.seg_len)) ui.step_bar++; }
+                else if (ui.page + 1u < PG_N) page(ui.page + 1u);
+                else ui.pair = 1;
+                ui.force = 1;
+            }
+            /* Read physical faders 0..3 */
+            {
+                static uint8_t fader_prev[4] = {0xFF, 0xFF, 0xFF, 0xFF};
+                uint32_t base = smk_fader_bank ? 4u : 0u;
+                uint32_t fi;
+                for (fi = 0; fi < 4u; fi++) {
+                    uint8_t fval = fm1_in.fader[fi];
+                    if (fader_prev[fi] == 0xFF) {
+                        fader_prev[fi] = fval;
+                    } else if (fval != fader_prev[fi]) {
+                        fader_prev[fi] = fval;
+                        uint32_t ch = base + fi;
+                        if (ch < SP_NCH) {
+                            ui.mix[ch] = fval;
+                            sp_mix[ch] = fval;
+                            ui.force = 1;
+                        }
+                    }
+                }
+            }
+            smk_pad_piano = ui.multi;
+        }
+#endif
         if (b & (1u << B_FX)) {                         /* FX down: a punch-in layer while held; tapped, the FX pages */
             ui.fx_used = 0;
             b &= ~(1u << B_FX);
