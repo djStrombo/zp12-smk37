@@ -22,7 +22,11 @@ static int zl_busy(void) { return zl_last && (uint32_t)(fm1_ms - zl_last) < 1000
 
 static int zl_writable(uint32_t a, uint32_t n)
 {
+#if BOARD_SMK37
+    return FL_STORE_OK(a, n);
+#else
     return FL_IN(a, n, 0xA0000u, 0xDC000u) || FL_IN(a, n, 0xE5000u, 0xE9000u) || FL_IN(a, n, 0xEA000u, 0xFC000u);
+#endif
 }
 
 static void zl_reply(uint32_t cmd, uint32_t rc, uint32_t a, const uint8_t *d, uint32_t n)

@@ -8,11 +8,15 @@
 #include "fm1_sys.h"
 #include "fm1_irq.h"
 #include "fm1_guard.h"
+#if BOARD_SMK37
+#include "smk_input.h"
+#else
 #include "fm1_input.h"
+#include "fm1_adc.h"
+#endif
 #include "fm1_timer.h"
 #include "fm1_lcd_hw.h"
 #include "fm1_audio.h"
-#include "fm1_adc.h"
 #include "bootguard.h"
 
 bootguard_t bootguard __attribute__((section(".noinit")));
@@ -29,14 +33,22 @@ static volatile uint32_t fm1_ms;
 #define FELUCCA_UAC 0
 #define FELUCCA_UART 0
 #ifndef FELUCCA_ID
+#if BOARD_SMK37
+#define FELUCCA_ID "SMK-37 Pro_970"
+#else
 #define FELUCCA_ID "FM-1_970"                   /* package identity: 97N = zp12 build N */
+#endif
 #endif
 #include "usb.c"
 
 /* ---- flash: read anywhere, erase / program only the update's staging area (saving comes later) */
+#if BOARD_SMK37
+#define FL_RANGE_OK(off, n) (FL_STORE_OK(off, n) || FL_IN(off, n, FL_OTA_LO, FL_OTA_HI))
+#else
 /* (the app writes Felucca's store, the update staging and, for the web tools, the free rooms above it:
  * 0xE5000..0xE8FFF and 0xEA000..0xFBFFF; sp_link.c narrows that to zp12's own and sloopDX's banks) */
 #define FL_RANGE_OK(off, n) (FL_STORE_OK(off, n) || FL_IN(off, n, FL_OTA_LO, 0xE9000u) || FL_IN(off, n, 0xEA000u, 0xFC000u))
+#endif
 #include "fm1_flash.h"
 static uint8_t flash_ok;
 static int st_read(uint32_t off, void *dst, uint32_t n)

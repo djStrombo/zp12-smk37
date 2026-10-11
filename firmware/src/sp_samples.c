@@ -13,8 +13,12 @@ static zu_dir_t zu_dir;
 
 static int zu_room(uint32_t off, uint32_t bytes)  /* inside one room the editor may fill */
 {
+#if BOARD_SMK37
+    return FL_IN(off, bytes, FL_DATA_LO, FL_DATA_HI) || FL_IN(off, bytes, FL_SMP_LO, FL_SMP_HI);
+#else
     return FL_IN(off, bytes, 0xA0000u, 0xC4000u) || FL_IN(off, bytes, 0xDA000u, 0xDC000u) ||
            FL_IN(off, bytes, 0xE5000u, 0xE9000u) || FL_IN(off, bytes, 0xEA000u, 0xFC000u);
+#endif
 }
 
 static void zu_load(void)
