@@ -32,8 +32,8 @@ on:
                                                                                                                 
           - name: Checkout JieLi AC79 SDK tools                                                                 
             run: |                                                                                              
-              git clone --depth 1 --filter=blob:none --sparse --branch AC79NN_SDK_V1.2.1_2023-12-13
-              https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git sdk                                                         
+              git clone --depth 1 --filter=blob:none --sparse --branch AC79NN_SDK_V1.2.1_2023-12-13             
+              https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git sdk
               git -C sdk sparse-checkout set cpu/wl82/tools                                                     
                                                                                                                 
           - name: Build ZP-12 SMK-37 Package (.fwsc)                                                            
