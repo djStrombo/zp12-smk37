@@ -319,9 +319,11 @@ static void zp12_main(void)
                 button(B_SEQ);
         }
         {   /* the LEDs: built aside, then swapped in (the scan never shows half of them) */
-            uint32_t lb, lk, lg, id, c, r;
-            uint8_t nl[FM1_NCOL], nd[FM1_NCOL];
+            uint32_t lb, lk, lg, id;
             ui_leds(&lb, &lk, &lg);
+#if !BOARD_SMK37
+            uint8_t nl[FM1_NCOL], nd[FM1_NCOL];
+            uint32_t c, r;
             memset(nl, 0, sizeof nl);
             memset(nd, 0, sizeof nd);
             for (c = 0; c < FM1_NCOL; c++)
@@ -334,6 +336,10 @@ static void zp12_main(void)
                 }
             memcpy(fm1_led, nl, sizeof nl);
             memcpy(fm1_led_dim, nd, sizeof nd);
+#else
+            for (id = 0; id < 14u; id++)
+                fm1_led_key(id, (lb >> id) & 1u);
+#endif
         }
         {   /* KNOB 1-4 (encoders 2..5), SELECT (0): tempo, ALGORITHM (1): the pad, PRESETS (6): its sample */
             int32_t d;
