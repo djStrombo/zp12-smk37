@@ -122,11 +122,17 @@ def key_blob(key):
 
 def sdk_file(rel):
     root = Path(SDK or os.environ.get("AC79_SDK", ""))
-    path = root / "cpu" / "wl82" / "tools" / rel
-    try:
-        return path.read_bytes()
-    except OSError as e:
-        raise SystemExit(f"fm1pkg_make: {path}: {e.strerror}. Set AC79_SDK to a JieLi AC79 SDK checkout.")
+    candidates = [
+        root / "cpu" / "wl82" / "tools" / rel,
+        root / rel,
+        Path("sdk/cpu/wl82/tools") / rel,
+        Path("sdk") / rel,
+        Path("tools/sdk") / rel,
+    ]
+    for p in candidates:
+        if p.exists():
+            return p.read_bytes()
+    raise SystemExit(f"fm1pkg_make: {candidates[0]}: No such file or directory. Set AC79_SDK to a JieLi AC79 SDK checkout.")
 
 
 def flash_image(app, key):
