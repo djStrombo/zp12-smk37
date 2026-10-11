@@ -4,9 +4,9 @@ on:
         branches: [ main, smk37 ]                                                                               
       pull_request:                                                                                             
         branches: [ main, smk37 ]                                                                               
-      workflow_dispatch:                                                                                        
-                                                                                                                
-    jobs:                                                                                                       
+      workflow_dispatch:
+      
+jobs:                                                                                                       
       build:                                                                                                    
         runs-on: ubuntu-latest                                                                                  
                                                                                                                 
