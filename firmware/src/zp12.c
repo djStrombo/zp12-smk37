@@ -506,6 +506,50 @@ static void zp12_main(void)
             smk_led_physical(6, ui.multi);
             smk_led_physical(7, smk_repeat_mode != 0);
             smk_led_physical(8, smk_scale_mode != 0);
+
+            /* WS2812 RGB Pad LEDs */
+            {
+                static uint8_t smk_pad_prev_st[16];
+                static uint32_t smk_pad_hit_ms[16];
+                uint32_t p;
+                for (p = 0; p < 16u; p++) {
+                    uint8_t st = (fm1_in.pad_st[p] & 0x80) != 0;
+                    if (st && !smk_pad_prev_st[p])
+                        smk_pad_hit_ms[p] = fm1_ms;
+                    smk_pad_prev_st[p] = st;
+                }
+
+                for (p = 0; p < 16u; p++) {
+                    uint32_t note_k = SMK_WHITE_NOTE[p];
+                    int is_down = (fm1_in.pad_st[p] & 0x80) != 0 || ((uint32_t)(fm1_ms - smk_pad_hit_ms[p]) < 90u);
+
+                    if (ui.steps) {
+                        /* Step sequencer mode: pads 0..15 = steps 1..16 of current bar */
+                        int has_step = (lk >> note_k) & 1u;
+                        int is_head = (lg >> note_k) & 1u;
+
+                        if (is_down || is_head) {
+                            /* Finger pressed or playhead cursor -> bright white */
+                            padled_set(p, 180, 180, 180);
+                        } else if (has_step) {
+                            /* Active recorded step -> steady illuminated white */
+                            padled_set(p, 60, 60, 60);
+                        } else {
+                            /* Inactive step -> off */
+                            padled_set(p, 0, 0, 0);
+                        }
+                    } else {
+                        /* Normal play mode: off by default, white when pressed or hit */
+                        int is_lit = is_down || ((lk >> note_k) & 1u);
+                        if (is_lit) {
+                            padled_set(p, 180, 180, 180);
+                        } else {
+                            padled_set(p, 0, 0, 0);
+                        }
+                    }
+                }
+                padled_flush();
+            }
 #endif
         }
 #if BOARD_SMK37
@@ -644,6 +688,9 @@ void fm1_cstart(void)
     ota_boot_cleanup();
     lcd_init();
     lcd_fill(0, 0, 240, 240, C_BLACK);
+#if BOARD_SMK37
+    padled_init();
+#endif
     fm1_input_init();
     fm1_adc_init();
     fm1_audio_init(abuf, HALF_WORDS, isr_alnk0, 3);   /* (abuf is zero: .bss) */

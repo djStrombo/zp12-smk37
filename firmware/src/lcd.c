@@ -195,4 +195,13 @@ static void padled_flush(void)
     fm1_lcd_wait();
     fm1_padled_done();
 }
+
+static void padled_init(void)
+{
+    uint32_t p;
+    for (p = 0; p < PADLED_N; p++)
+        padled_rgb[p] = 0;
+    padled_dirty = 1;
+    padled_flush();
+}
 #endif
