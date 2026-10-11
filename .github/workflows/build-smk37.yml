@@ -24,7 +24,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y curl tar bzip2 xz-utils
-          pip install pillow
+          pip install pillow numpy
 
       - name: Download JieLi Toolchain
         run: |
