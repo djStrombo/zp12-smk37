@@ -641,7 +641,11 @@ static void key_down(uint32_t k, int erase)
         return;
     }
     if (ui.multi && !erase) {                    /* MULTI PITCH: the sound, F4 (key 12) as written */
+#if BOARD_SMK37
+        pad_hit_at(ui.sel, 110, smk_quantize_note((int32_t)k - 12));
+#else
         pad_hit_at(ui.sel, 110, (int32_t)k - 12);
+#endif
         return;
     }
     pad = ui.multi ? ui.sel : key_pad(k);
