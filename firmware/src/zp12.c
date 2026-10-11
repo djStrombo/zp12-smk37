@@ -130,7 +130,7 @@ static void ota_commit(const uint8_t *parm)
 #define SP_HIT(k, vel, semis) sq_post(RQ_HIT, k, (vel) | (uint32_t)((semis) + 64) << 8)
 #if BOARD_SMK37
 static uint8_t smk_scale_mode = 0;
-static uint8_t smk_repeat_mode = 0;
+static uint8_t smk_root_note = 0;
 static uint8_t smk_fader_bank = 0;
 static const char *const SCALE_NAMES[5] = {
     "SCALE: OFF",
@@ -139,6 +139,11 @@ static const char *const SCALE_NAMES[5] = {
     "SCALE: PENTATONIC",
     "SCALE: BLUES"
 };
+static const char *const ROOT_NOTE_NAMES[12] = {
+    "ROOT KEY: C",  "ROOT KEY: C#", "ROOT KEY: D",  "ROOT KEY: D#",
+    "ROOT KEY: E",  "ROOT KEY: F",  "ROOT KEY: F#", "ROOT KEY: G",
+    "ROOT KEY: G#", "ROOT KEY: A",  "ROOT KEY: A#", "ROOT KEY: B"
+};
 static const int8_t SCALE_SNAP_MIN[12] = { 0, 0, 2, 3, 3, 5, 5, 7, 8, 8, 10, 10 };
 static const int8_t SCALE_SNAP_MAJ[12] = { 0, 0, 2, 2, 4, 5, 5, 7, 7, 9, 9, 11 };
 static const int8_t SCALE_SNAP_PNT[12] = { 0, 0, 0, 3, 3, 5, 5, 7, 7, 7, 10, 10 };
@@ -146,8 +151,9 @@ static const int8_t SCALE_SNAP_BLU[12] = { 0, 0, 0, 3, 3, 5, 6, 7, 7, 7, 10, 10 
 
 int32_t smk_quantize_note(int32_t note_offset) {
     if (!smk_scale_mode) return note_offset;
-    int32_t oct = note_offset / 12;
-    int32_t semi = note_offset % 12;
+    int32_t rel = note_offset - (int32_t)smk_root_note;
+    int32_t oct = rel / 12;
+    int32_t semi = rel % 12;
     if (semi < 0) { semi += 12; oct--; }
     switch (smk_scale_mode) {
     case 1: semi = SCALE_SNAP_MIN[semi]; break;
@@ -156,7 +162,7 @@ int32_t smk_quantize_note(int32_t note_offset) {
     case 4: semi = SCALE_SNAP_BLU[semi]; break;
     default: break;
     }
-    return oct * 12 + semi;
+    return oct * 12 + semi + (int32_t)smk_root_note;
 }
 #endif
 #include "sp_ui.c"
@@ -330,16 +336,16 @@ static void zp12_main(void)
             b &= ~(1u << ACT_SCALE);
             smk_scale_mode = (smk_scale_mode + 1) % 5;
             smk_led_physical(8, smk_scale_mode != 0);
+            smk_led_physical(7, smk_scale_mode != 0);
             ui_say(SCALE_NAMES[smk_scale_mode]);
             ui.force = 1;
         }
-        /* Note Repeat button */
+        /* Note Repeat button: cycles Root Key for Scale Mode */
         if (b & (1u << ACT_REPEAT)) {
             b &= ~(1u << ACT_REPEAT);
-            smk_repeat_mode ^= 1u;
-            smk_led_physical(7, smk_repeat_mode);
-            pn.req = smk_repeat_mode ? PN_ROLL16 : -1;
-            ui_say(smk_repeat_mode ? "NOTE ROLL: 1/16" : "NOTE ROLL: OFF");
+            smk_root_note = (smk_root_note + 1) % 12;
+            smk_led_physical(7, smk_scale_mode != 0);
+            ui_say(ROOT_NOTE_NAMES[smk_root_note]);
             ui.force = 1;
         }
         /* Fader Bank button: toggles sounds 1-4 vs 5-8 */
@@ -444,20 +450,23 @@ static void zp12_main(void)
         if (rel & (1u << B_GLO) && !ui.glo_used)
             button(B_GLO);
 #if BOARD_SMK37
-        if (b & (1u << B_SEQ)) {                        /* SEQ on SMK-37: alternates between step grid and SEQ page */
+        if (b & (1u << B_SEQ)) {                        /* SEQ on SMK-37: Step grid -> SEQ 1 -> SEQ 2 -> SEQ 3 (SONG) */
             b &= ~(1u << B_SEQ);
-            if (!ui.steps) {
-                ui.steps = 1;
-                ui.force = 1;
-            } else {
+            if (ui.steps) {
+                /* Step seq -> 1st seq page */
                 ui.steps = 0;
-                ui.force = 1;
-                if (ui.page != PG_SEG && ui.page != PG_SEG2 && ui.page != PG_SONG) {
-                    page(PG_SEG);
-                } else {
-                    button(B_SEQ);
-                }
+                page(PG_SEG);
+            } else if (ui.page == PG_SEG) {
+                /* 1st seq page -> 2nd seq page */
+                page(PG_SEG2);
+            } else if (ui.page == PG_SEG2) {
+                /* 2nd seq page -> 3rd seq page (SONG) */
+                page(PG_SONG);
+            } else {
+                /* 3rd seq page (or any other page) -> Step seq */
+                ui.steps = 1;
             }
+            ui.force = 1;
         }
 #else
         if (b & (1u << B_SEQ)) {                        /* SEQ down: the step grid while held */
@@ -504,7 +513,7 @@ static void zp12_main(void)
                 fm1_led_key(id, (lb >> id) & 1u);
             smk_led_physical(1, smk_fader_bank);
             smk_led_physical(6, ui.multi);
-            smk_led_physical(7, smk_repeat_mode != 0);
+            smk_led_physical(7, smk_scale_mode != 0);
             smk_led_physical(8, smk_scale_mode != 0);
 
             /* WS2812 RGB Pad LEDs */

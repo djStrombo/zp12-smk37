@@ -310,7 +310,8 @@ static void draw_lcd(void)                      /* the LCD: big the state, below
         p = cat(p + 2, " BAR ");
         p = num(p, ui.step_bar + 1, 1, 0);
         p = cat(p, "/");
-        num(p, sq_seg[sq.seg % SQ_NSEG].bars ? sq_seg[sq.seg % SQ_NSEG].bars : 1, 1, 0);
+        p = num(p, sq_seg[sq.seg % SQ_NSEG].bars ? sq_seg[sq.seg % SQ_NSEG].bars : 1, 1, 0);
+        if (sq.playing) cat(p, " >");
     } else if (sq.playing && (sq.countin > 0 || sq.dub_wait)) {   /* COUNT 4: the beats until recording */
         uint32_t left = sq.countin > 0 ? ((uint32_t)sq.countin + (SQ_PPQ << 16) - 1u) / (SQ_PPQ << 16)
                                         : (SQ_BAR - (sq.pos >> 16) % SQ_BAR + SQ_PPQ - 1u) / SQ_PPQ;
@@ -889,7 +890,12 @@ static void button(uint32_t b)
     case B_SAVE: ui.save_req = 1; ui_say("SAVED"); break;
     case B_GLO: page(ui.page >= PG_SETUP && ui.page < PG_OUTPUT ? ui.page + 1u : PG_SETUP); break;
     case B_ENV: tap_tempo(); break;
-    case B_PLAY: sq_post(sq.playing ? RQ_STOP : RQ_PLAY, 0, 0); break;
+    case B_PLAY:
+        if (!sq.playing && sq.song_mode && !SQ_SONG_N)
+            sq.song_mode = 0;
+        sq_post(sq.playing ? RQ_STOP : RQ_PLAY, 0, 0);
+        ui_say(sq.playing ? "STOP" : (sq_seg[sq.seg % SQ_NSEG].n == 0 ? "PLAY (EMPTY)" : "PLAY"));
+        break;
     case B_REC: sq_post(RQ_REC, 0, 0); break;
     default: break;
     }
