@@ -17,7 +17,8 @@ CORS), checked (the FM-1 package identity, the Felucca update loader), with its 
 
 GPL-3.0 projects only (each package's source is at the project's repository and tag, linked on the page).
 A firmware is added to FIRMWARES below; its author asked first."""
-import hashlib, json, re, subprocess, sys, urllib.error, urllib.request
+import hashlib, json, re, subprocess, sys, urllib.error, urllib.parse, urllib.request
+from email.utils import parsedate_to_datetime
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -27,7 +28,7 @@ BLK, KEEP, BLOCKS = 0x30, 0x2F, 20                # (as fm1pkg.js productOf)
 
 # id, editor / play (its web editor, its version in the browser), kind (the page's filter, one or a list: synth,
 # groove, drums, chords, dev), name, author, repo, the identity the running firmware reports (regex), what it is; source: "github" (the
-# latest release's .fwsc) or a path in this machine's checkouts (our own, deployed from there)
+# latest release's .fwsc), "pages:<its web installer>" (no releases: the package its installer names) or a path in this machine's checkouts (our own, deployed from there)
 FIRMWARES = [  # (the page orders them: zp12, sloopDX, then the others by their GitHub stars)
     # (Salt, ChoralRoot, Jangada, Melodee, Hortator, GHOULBOX, Bubba, Floyd, DX7 Banks, WaveLoop report numbers the others use too: their check is any FM-1
     # identity, the update loader is checked as for all; the page names the running one only when it is unambiguous)
@@ -89,7 +90,7 @@ FIRMWARES = [  # (the page orders them: zp12, sloopDX, then the others by their 
          what="SLOOP's live workflow with Dexed's DX7 engine and 128 steps a track: six operators, 32 algorithms, "
               "your own .syx banks, every voice edited on the FM-1, FM drums you program."),
     dict(id="x0x", play="https://charlesvestal.github.io/fm1-x0x/emu/",
-         kind="groove", name="X0X", author="Charles Vestal", repo="charlesvestal/fm1-x0x", ident=r"FM-1_900\d{4}",
+         kind="groove", name="X0X", author="Charles Vestal", repo="charlesvestal/fm1-x0x", ident=r"FM-1_90\d{5}",
          src="github",
          what="A groovebox: 909 and 808 drums, two 303s with TB-3PO, a breakbeat generator and song mode."),
     dict(id="fomni", play="https://charlesvestal.github.io/fm1-fomni/emu/",
@@ -115,6 +116,11 @@ FIRMWARES = [  # (the page orders them: zp12, sloopDX, then the others by their 
          ident=r"FM-1_800\d{4}", src="github", site="https://jadamsowers.github.io/fm1-fimba/",
          what="A physically modelled kalimba: tines laid out like the real one, thumb-roll chords, mbira patterns, "
               "a sound hole to cover, grains, tape and a plate reverb. Play it in the browser first."),
+    dict(id="jiant", editor="https://juanjiant-bit.github.io/JIANT/webapp/editor/", play="https://juanjiant-bit.github.io/JIANT/",
+         kind=["synth", "groove"], name="JIANT FM", author="juanjiant-bit", repo="juanjiant-bit/JIANT", ident=r"FM-1_\d{3,8}",
+         src="pages:https://juanjiant-bit.github.io/JIANT/webapp/installer/", site="https://juanjiant-bit.github.io/JIANT/",
+         what="A bio-synthetic groovebox: six tracks drawn as living beings in thermal colours, eight engines (FM6 with "
+              "Dexed, analog, phase, voice…), mutating macros, song mode from SLOOP. Not yet tested much on a real FM-1."),
 ]
 
 
@@ -177,6 +183,19 @@ def stars_daily(f, was):
         return {"stars": was.get("stars"), "starsDay": was.get("starsDay")}
 
 
+def latest_pages(spec, repo):
+    """the package a GitHub Pages installer names in its meta (a project without releases, built from main)"""
+    url = spec.split(":", 1)[1]
+    meta = json.loads(re.search(r"const meta = (\{[^}]*\});", get(url, "text/html").decode()).group(1))
+    req = urllib.request.Request(urllib.parse.urljoin(url, meta["pkg"]), headers={"User-Agent": "fm1-switcher (designburgapps.com)"})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        raw = r.read()
+        date = parsedate_to_datetime(r.headers["Last-Modified"]).strftime("%Y-%m-%dT%H:%M:%SZ")
+    version = meta["version"].lstrip("v")
+    commit = version.rsplit("-", 1)[-1]                # (v0.6.2-be3719e: the build's commit)
+    return raw, version, date, None, f"https://github.com/{repo}/tree/{commit}"
+
+
 def latest_local(spec, sloopdx):
     where, sub = spec.split(":", 1)
     root = (Path(sloopdx) if where == "sloopdx" else HERE) / sub
@@ -199,12 +218,15 @@ def main(sloopdx=str(HERE.parent / "sloopdx"), out=OUT, purge=False):
     keep, cat = set(), []
     for f in FIRMWARES:
         try:
-            raw, version, date, rel_url, src_url = latest_github(f["repo"], f.get("pkg", r"[^/\"]+\.fwsc")) if f["src"] == "github" else latest_local(f["src"], sloopdx)
+            raw, version, date, rel_url, src_url = latest_github(f["repo"], f.get("pkg", r"[^/\"]+\.fwsc")) if f["src"] == "github" \
+                else latest_pages(f["src"], f["repo"]) if f["src"].startswith("pages:") else latest_local(f["src"], sloopdx)
             ident = product_of(raw)
             if not re.fullmatch(f["ident"], ident) or b"FELUCCA-LOADER-1" not in raw:
                 raise ValueError(f"{version}: identity {ident!r} or the update loader not as expected")
         except Exception as e:                        # (GitHub down, a broken release: the last good one stays)
             print(f"fm1_sync: {f['name']}: {e}", file=sys.stderr)
+            if isinstance(e, urllib.error.HTTPError) and e.code == 404:
+                continue                              # (the repo deleted or private: off the page, back when it is again)
             if f["id"] in old and (out / old[f["id"]]["pkg"]).exists():
                 cat.append(old[f["id"]] | {k: f[k] for k in ("kind", "name", "author", "what")} | {k: f.get(k) for k in ("editor", "play")}
                            | stars_daily(f, old[f["id"]]))   # (the stars on their own: a new count even without the release)
