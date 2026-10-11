@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
+/* Generated automatically by SMK-37 Control Remapper */
 #pragma once
 #include <stdint.h>
 
@@ -42,24 +43,24 @@
 
 /* Physical button (0..17) to logical action mapping */
 static const uint8_t SMK_BTN_MAP[18] = {
-    ACT_SEL,     /* 0: KNOB BANK -> SELECT / SHIFT */
-    ACT_SAVE,    /* 1: FADER BANK -> SAVE */
-    ACT_OCTDN,   /* 2: < -> OCTAVE- */
-    ACT_OCTUP,   /* 3: > -> OCTAVE+ */
-    ACT_OCTDN,   /* 4: OCTAVE- -> OCTAVE- */
-    ACT_OCTUP,   /* 5: OCTAVE+ -> OCTAVE+ */
-    ACT_ARP,     /* 6: ARP -> ARP / ROLL */
-    ACT_LFO,     /* 7: NOTE REPEAT -> LFO / STEP ERASE */
-    ACT_HOME,    /* 8: SCALE -> MIX / HOME */
-    ACT_ENV,     /* 9: CHORD -> ENVELOPE */
-    ACT_GLO,     /* 10: GLOBE -> GLOBAL / MUTES */
-    ACT_SAVE,    /* 11: BT -> SAVE */
-    ACT_EDIT,    /* 12: PATCH -> EDIT SOUND */
-    ACT_SEL,     /* 13: PARA -> SELECT / SHIFT */
-    ACT_FX,      /* 14: FX -> FX / PUNCH-IN */
-    ACT_SEQ,     /* 15: SEQ -> SEQUENCER / GRID */
-    ACT_PLAY,    /* 16: SEQ PLAY -> PLAY / PAUSE */
-    ACT_REC,     /* 17: SEQ REC -> RECORD / CLEAR */
+    ACT_SEL      /* 0: KNOB BANK */,
+    ACT_SAVE     /* 1: FADER BANK */,
+    ACT_OCTDN    /* 2: < (LEFT) */,
+    ACT_OCTUP    /* 3: > (RIGHT) */,
+    ACT_OCTDN    /* 4: OCTAVE- */,
+    ACT_OCTUP    /* 5: OCTAVE+ */,
+    ACT_ARP      /* 6: ARP */,
+    ACT_LFO      /* 7: NOTE REPEAT */,
+    ACT_HOME     /* 8: SCALE */,
+    ACT_ENV      /* 9: CHORD */,
+    ACT_GLO      /* 10: GLOBE */,
+    ACT_SAVE     /* 11: BT */,
+    ACT_EDIT     /* 12: PATCH */,
+    ACT_SEL      /* 13: PARA */,
+    ACT_FX       /* 14: FX */,
+    ACT_SEQ      /* 15: SEQ */,
+    ACT_PLAY     /* 16: SEQ PLAY */,
+    ACT_REC      /* 17: SEQ REC */,
 };
 
 /* ZP-12 Logical Encoder Actions */
@@ -73,14 +74,14 @@ static const uint8_t SMK_BTN_MAP[18] = {
 #define ENC_ACT_SAMPLE 6   /* Preset / Sample Select */
 #define ENC_ACT_MASTER 7   /* Master Volume */
 
-/* Physical encoders K1..K8 (indices 0..7) default mapping */
+/* Physical encoders K1..K8 (indices 0..7) mapping */
 static const uint8_t SMK_ENC_MAP[8] = {
-    ENC_ACT_KNOB1,  /* K1 -> Knob 1 */
-    ENC_ACT_KNOB2,  /* K2 -> Knob 2 */
-    ENC_ACT_KNOB3,  /* K3 -> Knob 3 */
-    ENC_ACT_KNOB4,  /* K4 -> Knob 4 */
-    ENC_ACT_TEMPO,  /* K5 -> Tempo / BPM */
-    ENC_ACT_PADSEL, /* K6 -> Pad Select */
-    ENC_ACT_SAMPLE, /* K7 -> Preset / Sample */
-    ENC_ACT_MASTER, /* K8 -> Master Volume */
+    ENC_ACT_KNOB1  /* K1 */,
+    ENC_ACT_KNOB2  /* K2 */,
+    ENC_ACT_KNOB3  /* K3 */,
+    ENC_ACT_KNOB4  /* K4 */,
+    ENC_ACT_TEMPO  /* K5 */,
+    ENC_ACT_PADSEL /* K6 */,
+    ENC_ACT_SAMPLE /* K7 */,
+    ENC_ACT_MASTER /* K8 */,
 };
