@@ -548,26 +548,20 @@ static void zp12_main(void)
         b = fm1_input_edges(&rel);
         b = ui_holds(fm1_in.buttons, b, rel);           /* REC held: CLEAR; SAVE tapped / held + a black key */
 #if BOARD_SMK37
-        /* Shift (KNOB BANK / B_SEL) held + Home (PATCH / B_HOME) tapped: triggers SAVE */
-        if (((fm1_in.buttons >> B_SEL) & 1u) && (b & (1u << B_HOME))) {
-            b &= ~(1u << B_HOME);
-            b |= (1u << B_SAVE);
-        }
-
         /* PATCH (B_HOME) Tap vs Hold:
-         * Hold >= 1500 ms toggles MIDI Controller Mode (Local Control Off).
-         * Tap (< 1500 ms) goes to Home (clearing step seq). */
+         * Hold >= 800 ms toggles MIDI Controller Mode (Local Control Off).
+         * Tap (< 800 ms) goes to Home (clearing step seq). */
         {
             static uint32_t patch_down_ms = 0;
             static uint8_t patch_held_fired = 0;
 
             if (b & (1u << B_HOME)) {
                 b &= ~(1u << B_HOME);
-                patch_down_ms = fm1_ms;
+                patch_down_ms = fm1_ms ? fm1_ms : 1;
                 patch_held_fired = 0;
             }
-            if ((fm1_in.buttons >> B_HOME) & 1u) {
-                if (!patch_held_fired && (uint32_t)(fm1_ms - patch_down_ms) >= 1500u) {
+            if (patch_down_ms && ((fm1_in.buttons >> B_HOME) & 1u)) {
+                if (!patch_held_fired && (uint32_t)(fm1_ms - patch_down_ms) >= 800u) {
                     patch_held_fired = 1;
                     smk_midi_mode ^= 1u;
                     ui_say(smk_midi_mode ? "MIDI MODE: ON" : "STANDALONE ON");
@@ -575,11 +569,13 @@ static void zp12_main(void)
                 }
             }
             if (rel & (1u << B_HOME)) {
-                if (!patch_held_fired) {
+                if (patch_down_ms && !patch_held_fired) {
                     ui.steps = 0;
                     page(PG_HOME);
                     ui.force = 1;
                 }
+                patch_down_ms = 0;
+                patch_held_fired = 0;
             }
         }
 
@@ -631,10 +627,10 @@ static void zp12_main(void)
 
             if (b & (1u << ACT_SCALE)) {
                 b &= ~(1u << ACT_SCALE);
-                scale_down_ms = fm1_ms;
+                scale_down_ms = fm1_ms ? fm1_ms : 1;
                 scale_held_fired = 0;
             }
-            if ((fm1_in.buttons >> ACT_SCALE) & 1u) {
+            if (scale_down_ms && ((fm1_in.buttons >> ACT_SCALE) & 1u)) {
                 if (!scale_held_fired && (uint32_t)(fm1_ms - scale_down_ms) >= 600u) {
                     scale_held_fired = 1;
                     smk_scale_mode = 0;
@@ -643,11 +639,13 @@ static void zp12_main(void)
                 }
             }
             if (rel & (1u << ACT_SCALE)) {
-                if (!scale_held_fired) {
+                if (scale_down_ms && !scale_held_fired) {
                     smk_scale_mode = (smk_scale_mode + 1) % 5;
                     ui_say(SCALE_NAMES[smk_scale_mode]);
                     ui.force = 1;
                 }
+                scale_down_ms = 0;
+                scale_held_fired = 0;
             }
         }
 
@@ -658,10 +656,10 @@ static void zp12_main(void)
 
             if (b & (1u << ACT_CHORD)) {
                 b &= ~(1u << ACT_CHORD);
-                chord_down_ms = fm1_ms;
+                chord_down_ms = fm1_ms ? fm1_ms : 1;
                 chord_held_fired = 0;
             }
-            if ((fm1_in.buttons >> ACT_CHORD) & 1u) {
+            if (chord_down_ms && ((fm1_in.buttons >> ACT_CHORD) & 1u)) {
                 if (!chord_held_fired && (uint32_t)(fm1_ms - chord_down_ms) >= 600u) {
                     chord_held_fired = 1;
                     smk_chord_mode = 0;
@@ -670,7 +668,7 @@ static void zp12_main(void)
                 }
             }
             if (rel & (1u << ACT_CHORD)) {
-                if (!chord_held_fired) {
+                if (chord_down_ms && !chord_held_fired) {
                     smk_chord_mode = (smk_chord_mode + 1) % 7;
                     if (smk_chord_mode != 0 && !smk_midi_mode) {
                         ui.multi = 1;
@@ -678,6 +676,8 @@ static void zp12_main(void)
                     ui_say(CHORD_NAMES[smk_chord_mode]);
                     ui.force = 1;
                 }
+                chord_down_ms = 0;
+                chord_held_fired = 0;
             }
         }
 
@@ -688,10 +688,10 @@ static void zp12_main(void)
 
             if (b & (1u << ACT_REPEAT)) {
                 b &= ~(1u << ACT_REPEAT);
-                repeat_down_ms = fm1_ms;
+                repeat_down_ms = fm1_ms ? fm1_ms : 1;
                 repeat_held_fired = 0;
             }
-            if ((fm1_in.buttons >> ACT_REPEAT) & 1u) {
+            if (repeat_down_ms && ((fm1_in.buttons >> ACT_REPEAT) & 1u)) {
                 if (!repeat_held_fired && (uint32_t)(fm1_ms - repeat_down_ms) >= 600u) {
                     repeat_held_fired = 1;
                     smk_root_note = 0;
@@ -700,43 +700,78 @@ static void zp12_main(void)
                 }
             }
             if (rel & (1u << ACT_REPEAT)) {
-                if (!repeat_held_fired) {
+                if (repeat_down_ms && !repeat_held_fired) {
                     smk_root_note = (smk_root_note + 1) % 12;
                     ui_say(ROOT_NOTE_NAMES[smk_root_note]);
                     ui.force = 1;
                 }
+                repeat_down_ms = 0;
+                repeat_held_fired = 0;
             }
         }
 
-        /* KNOB BANK button (Button 0):
-         * In MIDI mode: toggles Knob Bank 1 / 2 (CC 20..27 vs CC 28..35).
-         * In ZP-12 mode: triggers SAVE directly! */
-        if (b & (1u << ACT_SEL)) {
-            b &= ~(1u << ACT_SEL);
-            if (smk_midi_mode) {
-                smk_midi_enc_bank ^= 1u;
-                ui_say(smk_midi_enc_bank ? "KNOB BANK 2 (CC 28-35)" : "KNOB BANK 1 (CC 20-27)");
-                ui.force = 1;
-            } else {
-                ui.save_req = 1;
-                ui_say("SAVED");
-                ui.force = 1;
-            }
-        }
+        /* Banking buttons:
+         * Button 0 (ACT_LFO): Knob Bank (in MIDI) / Step Erase (in ZP-12)
+         * Button 1 (ACT_FBANK): Fader Bank
+         * Button 0 + 1 combo: Pad Bank */
+        {
+            static uint8_t bank_combo_fired = 0;
+            static uint8_t knob_btn_down = 0;
+            static uint8_t fad_btn_down = 0;
 
-        /* FADER BANK button (Button 1):
-         * In MIDI mode: toggles Fader Bank 1 / 2 (CC 40..43 vs CC 44..47).
-         * In ZP-12 mode: toggles sounds 1-4 vs 5-8. */
-        if (b & (1u << ACT_FBANK)) {
-            b &= ~(1u << ACT_FBANK);
-            if (smk_midi_mode) {
-                smk_midi_fad_bank ^= 1u;
-                ui_say(smk_midi_fad_bank ? "FADER BANK 2 (CC 44-47)" : "FADER BANK 1 (CC 40-43)");
-                ui.force = 1;
-            } else {
-                smk_fader_bank ^= 1u;
-                ui_say(smk_fader_bank ? "FADERS 5-8" : "FADERS 1-4");
-                ui.force = 1;
+            if (b & (1u << ACT_LFO)) {
+                if (smk_midi_mode) {
+                    b &= ~(1u << ACT_LFO);
+                    knob_btn_down = 1;
+                    if (fad_btn_down || ((fm1_in.buttons >> ACT_FBANK) & 1u)) {
+                        bank_combo_fired = 1;
+                        smk_midi_pad_bank ^= 1u;
+                        ui_say(smk_midi_pad_bank ? "PAD BANK 2 (52-67)" : "PAD BANK 1 (36-51)");
+                        ui.force = 1;
+                    }
+                }
+                /* In ZP-12 mode, ACT_LFO passes through as B_LFO (native ERASE) */
+            }
+
+            if (b & (1u << ACT_FBANK)) {
+                b &= ~(1u << ACT_FBANK);
+                if (smk_midi_mode) {
+                    fad_btn_down = 1;
+                    if (knob_btn_down || ((fm1_in.buttons >> ACT_LFO) & 1u)) {
+                        bank_combo_fired = 1;
+                        smk_midi_pad_bank ^= 1u;
+                        ui_say(smk_midi_pad_bank ? "PAD BANK 2 (52-67)" : "PAD BANK 1 (36-51)");
+                        ui.force = 1;
+                    }
+                } else {
+                    smk_fader_bank ^= 1u;
+                    ui_say(smk_fader_bank ? "FADERS 5-8" : "FADERS 1-4");
+                    ui.force = 1;
+                }
+            }
+
+            if (rel & (1u << ACT_LFO)) {
+                if (smk_midi_mode) {
+                    if (knob_btn_down && !bank_combo_fired) {
+                        smk_midi_enc_bank ^= 1u;
+                        ui_say(smk_midi_enc_bank ? "KNOB BANK 2 (CC 28-35)" : "KNOB BANK 1 (CC 20-27)");
+                        ui.force = 1;
+                    }
+                    knob_btn_down = 0;
+                    if (!fad_btn_down) bank_combo_fired = 0;
+                }
+            }
+
+            if (rel & (1u << ACT_FBANK)) {
+                if (smk_midi_mode) {
+                    if (fad_btn_down && !bank_combo_fired) {
+                        smk_midi_fad_bank ^= 1u;
+                        ui_say(smk_midi_fad_bank ? "FADER BANK 2 (CC 44-47)" : "FADER BANK 1 (CC 40-43)");
+                        ui.force = 1;
+                    }
+                    fad_btn_down = 0;
+                    if (!knob_btn_down) bank_combo_fired = 0;
+                }
             }
         }
 
@@ -934,8 +969,7 @@ static void zp12_main(void)
                 smk_led_physical(3, smk_midi_pad_bank == 1);
                 smk_led_physical(12, (fm1_ms / 250u) & 1u);
             } else {
-                int has_unsaved = (last_sig != zs_saved_sig) || save_later || ui.save_req;
-                smk_led_physical(0, has_unsaved);
+                smk_led_physical(0, (fm1_in.buttons >> ACT_LFO) & 1u);
                 smk_led_physical(1, smk_fader_bank != 0);
             }
             smk_led_physical(4, smk_kbd_oct < 0);

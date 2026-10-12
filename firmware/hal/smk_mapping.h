@@ -51,7 +51,7 @@
 
 /* Physical button (0..17) to logical action mapping */
 static const uint8_t SMK_BTN_MAP[18] = {
-    ACT_SEL      /* 0: KNOB BANK */,
+    ACT_LFO      /* 0: KNOB BANK (ERASE in ZP-12, Knob Bank in MIDI) */,
     ACT_FBANK    /* 1: FADER BANK */,
     ACT_OCTDN    /* 2: < (LEFT) */,
     ACT_OCTUP    /* 3: > (RIGHT) */,
