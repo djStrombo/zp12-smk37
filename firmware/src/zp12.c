@@ -852,7 +852,6 @@ static void zp12_main(void)
             }
         }
         smk_pad_piano = ui.multi;
-    }
 #endif
         if (b & (1u << B_FX)) {                         /* FX down: a punch-in layer while held; tapped, the FX pages */
             ui.fx_used = 0;
