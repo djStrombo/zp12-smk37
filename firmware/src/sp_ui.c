@@ -333,14 +333,29 @@ static void draw_lcd(void)                      /* the LCD: big the state, below
         p = cat(p, ".");
         num(p, (int32_t)(t % SQ_BAR / SQ_PPQ + 1u), 1, 0);
     } else {
+#if BOARD_SMK37
+        if (smk_midi_mode) {
+            p[0] = 0;
+            cat(p, "MIDI CONTROLLER");
+        } else {
+            pad_label(p, ui.sel);
+            p = cat(p + 2, " ");
+            cat(p, sound_name(ui.sel));
+        }
+#else
         pad_label(p, ui.sel);
         p = cat(p + 2, " ");
         cat(p, sound_name(ui.sel));
+#endif
     }
     {   /* top right, small: the tempo (REC / COUNT / ARMED before it), below it the page; what does not fit
          * beside the big line is left out (the big line wins) */
         int32_t bw = 10 + text_w(&FONT_L, big) + 6;
+#if BOARD_SMK37
+        const char *pg = smk_midi_mode ? "MIDI" : (ui.page == PG_HOME ? "BPM" : PG_NAME[ui.page]);
+#else
         const char *pg = ui.page == PG_HOME ? "BPM" : PG_NAME[ui.page];
+#endif
         const char *st = sq.playing && (sq.countin > 0 || sq.dub_wait) ? "COUNT " : sq.recording ? "REC " : sq.rec_arm ? "ARMED " : "";
         p = cat(small, st);
         num(p, (int32_t)(bpm / 10u), 3, 0);
@@ -498,6 +513,9 @@ static void ui_draw(void)
         ui.sig_lcd = ui.sig_mid = ui.sig_pad = ui.sig_led = ui.sig_head = 0;
     }
     s = on_page() ? ui.page * 7u + 1u : 0x5A5Au;
+#if BOARD_SMK37
+    s ^= (uint32_t)smk_midi_mode * 7919u;
+#endif
     if (s != ui.sig_head || ui.force) { ui.sig_head = s; draw_head(); }
     s = sig_of(&sp_sound[ui.sel], sizeof(sp_sound_t), 2166136261u ^ ui.sel * 7u ^ ui.page * 131u ^ sq.bpm10 * 7919u ^ ui.multi);
     s = sig_of(ui.mix, sizeof ui.mix, s ^ ui.shift ^ ui.steps * 3u ^ ui.step_bar * 29u ^ ui.arm * 37u ^ ui.copy_to * 41u);
@@ -664,7 +682,7 @@ static void key_down(uint32_t k, int erase)
     }
     if (ui.multi && !erase) {                    /* MULTI PITCH: the sound, F4 (key 12) as written */
 #if BOARD_SMK37
-        smk_play_note_or_chord(ui.sel, 110, (int32_t)k - 12);
+        smk_play_note_or_chord(ui.sel, 110, (int32_t)k - 12 + (int32_t)smk_kbd_oct * 12);
 #else
         pad_hit_at(ui.sel, 110, (int32_t)k - 12);
 #endif
@@ -904,17 +922,18 @@ static void button(uint32_t b)
         else ui.pair = 0;
         break;
     case B_ARP: ui.multi ^= 1u; break;
-    case B_HOME: page(PG_HOME); break;
+    case B_HOME: ui.steps = 0; page(PG_HOME); break;
     case B_SEL:                                  /* the faders 5-8 (lit) or 1-4, until pressed again; from a page: the faders */
+        ui.steps = 0;
         ui.shift ^= 1u;
         page(PG_HOME);
         ui_say(ui.shift ? "FADERS 5-8" : "FADERS 1-4");
         break;
-    case B_EDIT: ui.prev_page = ui.page; page(ui.page >= PG_WAVE && ui.page < PG_SFX ? ui.page + 1u : PG_WAVE); break;
-    case B_FX: page(ui.page >= PG_FILT && ui.page < PG_REV ? ui.page + 1u : PG_FILT); break;
+    case B_EDIT: ui.steps = 0; ui.prev_page = ui.page; page(ui.page >= PG_WAVE && ui.page < PG_SFX ? ui.page + 1u : PG_WAVE); break;
+    case B_FX: ui.steps = 0; page(ui.page >= PG_FILT && ui.page < PG_REV ? ui.page + 1u : PG_FILT); break;
     case B_SEQ: page(ui.page == PG_SEG ? PG_SEG2 : ui.page == PG_SEG2 ? PG_SONG : PG_SEG); break;
     case B_SAVE: ui.save_req = 1; ui_say("SAVED"); break;
-    case B_GLO: page(ui.page >= PG_SETUP && ui.page < PG_OUTPUT ? ui.page + 1u : PG_SETUP); break;
+    case B_GLO: ui.steps = 0; page(ui.page >= PG_SETUP && ui.page < PG_OUTPUT ? ui.page + 1u : PG_SETUP); break;
     case B_ENV: tap_tempo(); break;
     case B_PLAY:
         if (!sq.playing && sq.song_mode && !SQ_SONG_N)

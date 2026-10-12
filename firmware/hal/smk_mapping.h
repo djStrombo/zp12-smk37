@@ -46,6 +46,8 @@
 #define ACT_SCALE   17  /* Scale Quantize Mode Toggle */
 #define ACT_REPEAT  18  /* Note Repeat / Roll (1/16 Beat Roll) */
 #define ACT_CHORD   19  /* Chord Mode Cycle */
+#define ACT_KBD_OCTDN 20  /* Keyboard Octave Down (-3..+3) */
+#define ACT_KBD_OCTUP 21  /* Keyboard Octave Up (-3..+3) */
 
 /* Physical button (0..17) to logical action mapping */
 static const uint8_t SMK_BTN_MAP[18] = {
@@ -53,8 +55,8 @@ static const uint8_t SMK_BTN_MAP[18] = {
     ACT_FBANK    /* 1: FADER BANK */,
     ACT_OCTDN    /* 2: < (LEFT) */,
     ACT_OCTUP    /* 3: > (RIGHT) */,
-    ACT_OCTDN    /* 4: OCTAVE- */,
-    ACT_OCTUP    /* 5: OCTAVE+ */,
+    ACT_KBD_OCTDN /* 4: OCTAVE- */,
+    ACT_KBD_OCTUP /* 5: OCTAVE+ */,
     ACT_ARP      /* 6: ARP */,
     ACT_REPEAT   /* 7: NOTE REPEAT */,
     ACT_SCALE    /* 8: SCALE */,

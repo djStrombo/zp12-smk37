@@ -133,6 +133,8 @@ static uint8_t smk_scale_mode = 0;
 static uint8_t smk_root_note = 0;
 static uint8_t smk_chord_mode = 0;
 static uint8_t smk_fader_bank = 0;
+static int8_t smk_kbd_oct = 0;
+static uint8_t smk_midi_mode = 0;
 static const char *const SCALE_NAMES[5] = {
     "SCALE: OFF",
     "SCALE: MINOR",
@@ -436,10 +438,91 @@ static void zp12_main(void)
                         if ((n >> k) & 1u && white_of(k) < PN_NFX) px = (int32_t)white_of(k);
                 pn.req = (int8_t)px;
             }
+#if BOARD_SMK37
+            if (!smk_midi_mode) {
+                for (i = 0; down; i++, down >>= 1)          /* the keys: pads (ui decides which) */
+                    if (down & 1u)
+                        key_down(i, (bt >> B_LFO) & 1u);
+            }
+#else
             for (i = 0; down; i++, down >>= 1)          /* the keys: pads (ui decides which) */
                 if (down & 1u)
                     key_down(i, (bt >> B_LFO) & 1u);
+#endif
         }
+#if BOARD_SMK37
+        /* USB MIDI keybed transmission */
+        {
+            static uint64_t smk_prev_keys = 0;
+            static uint8_t smk_key_midinote[FM1_NKEY];
+            uint64_t cur_k = fm1_in.keys;
+            uint64_t kd = cur_k & ~smk_prev_keys;
+            uint64_t ku = ~cur_k & smk_prev_keys;
+            smk_prev_keys = cur_k;
+
+            uint32_t ki;
+            for (ki = 0; ki < FM1_NKEY; ki++) {
+                uint64_t bit = (uint64_t)1u << ki;
+                if (kd & bit) {
+                    int32_t m_note = 48 + (int32_t)ki + ((int32_t)smk_kbd_oct * 12);
+                    m_note = sp_clamp(m_note, 0, 127);
+                    uint32_t vel = fm1_in.key_vel[ki];
+                    if (!vel) vel = 96;
+                    smk_key_midinote[ki] = (uint8_t)m_note;
+                    midi_out_event(0x09u | (0x90u << 8) | ((uint32_t)m_note << 16) | (vel << 24));
+                }
+                if (ku & bit) {
+                    uint32_t m_note = smk_key_midinote[ki];
+                    midi_out_event(0x08u | (0x80u << 8) | (m_note << 16) | (0x40u << 24));
+                }
+            }
+        }
+
+        /* USB MIDI drum pads transmission */
+        {
+            static uint16_t smk_prev_pad_st = 0;
+            uint16_t cur_pad_st = 0;
+            uint32_t pi;
+            for (pi = 0; pi < 16u; pi++) {
+                if (fm1_in.pad_st[pi] & 0x80)
+                    cur_pad_st |= (1u << pi);
+            }
+            uint16_t pd = cur_pad_st & ~smk_prev_pad_st;
+            uint16_t pu = ~cur_pad_st & smk_prev_pad_st;
+            smk_prev_pad_st = cur_pad_st;
+
+            for (pi = 0; pi < 16u; pi++) {
+                uint16_t pbit = 1u << pi;
+                if (pd & pbit) {
+                    uint32_t vel = fm1_in.pad_press[pi];
+                    if (!vel) vel = 100;
+                    midi_out_event(0x09u | (0x99u << 8) | ((36u + pi) << 16) | ((vel & 0x7Fu) << 24));
+                }
+                if (pu & pbit) {
+                    midi_out_event(0x08u | (0x89u << 8) | ((36u + pi) << 16) | (0x40u << 24));
+                }
+            }
+        }
+
+        /* USB MIDI Wheels transmission */
+        {
+            static uint16_t smk_prev_wheel[2] = {0xFFFFu, 0xFFFFu};
+            uint16_t w0 = fm1_in.wheel[0];
+            if (smk_prev_wheel[0] == 0xFFFFu || (w0 > smk_prev_wheel[0] + 3u) || (w0 + 3u < smk_prev_wheel[0])) {
+                smk_prev_wheel[0] = w0;
+                uint32_t pb = (uint32_t)w0 * 16383u / 1023u;
+                uint32_t lsb = pb & 0x7Fu;
+                uint32_t msb = (pb >> 7) & 0x7Fu;
+                midi_out_event(0x0Eu | (0xE0u << 8) | (lsb << 16) | (msb << 24));
+            }
+            uint16_t w1 = fm1_in.wheel[1];
+            if (smk_prev_wheel[1] == 0xFFFFu || (w1 > smk_prev_wheel[1] + 7u) || (w1 + 7u < smk_prev_wheel[1])) {
+                smk_prev_wheel[1] = w1;
+                uint32_t mod = (uint32_t)w1 * 127u / 1023u;
+                midi_out_event(0x0Bu | (0xB0u << 8) | (0x01u << 16) | ((mod & 0x7Fu) << 24));
+            }
+        }
+#endif
         b = fm1_input_edges(&rel);
         b = ui_holds(fm1_in.buttons, b, rel);           /* REC held: CLEAR; SAVE tapped / held + a black key */
 #if BOARD_SMK37
@@ -447,6 +530,76 @@ static void zp12_main(void)
         if (((fm1_in.buttons >> B_SEL) & 1u) && (b & (1u << B_HOME))) {
             b &= ~(1u << B_HOME);
             b |= (1u << B_SAVE);
+        }
+
+        /* PATCH (B_HOME) Tap vs Hold:
+         * Hold >= 1500 ms toggles MIDI Controller Mode (Local Control Off).
+         * Tap (< 1500 ms) goes to Home (clearing step seq). */
+        {
+            static uint32_t patch_down_ms = 0;
+            static uint8_t patch_held_fired = 0;
+
+            if (b & (1u << B_HOME)) {
+                b &= ~(1u << B_HOME);
+                patch_down_ms = fm1_ms;
+                patch_held_fired = 0;
+            }
+            if ((fm1_in.buttons >> B_HOME) & 1u) {
+                if (!patch_held_fired && (uint32_t)(fm1_ms - patch_down_ms) >= 1500u) {
+                    patch_held_fired = 1;
+                    smk_midi_mode ^= 1u;
+                    ui_say(smk_midi_mode ? "MIDI MODE: ON" : "STANDALONE ON");
+                    ui.force = 1;
+                }
+            }
+            if (rel & (1u << B_HOME)) {
+                if (!patch_held_fired) {
+                    button(B_HOME);
+                    ui.force = 1;
+                }
+            }
+        }
+
+        /* Keyboard Octave buttons */
+        if (b & (1u << ACT_KBD_OCTDN)) {
+            b &= ~(1u << ACT_KBD_OCTDN);
+            if (smk_kbd_oct > -3) smk_kbd_oct--;
+            char msg[16];
+            msg[0] = 'O'; msg[1] = 'C'; msg[2] = 'T'; msg[3] = 'A'; msg[4] = 'V'; msg[5] = 'E'; msg[6] = ' ';
+            if (smk_kbd_oct > 0) {
+                msg[7] = '+';
+                msg[8] = (char)('0' + smk_kbd_oct);
+                msg[9] = 0;
+            } else if (smk_kbd_oct < 0) {
+                msg[7] = '-';
+                msg[8] = (char)('0' + (-smk_kbd_oct));
+                msg[9] = 0;
+            } else {
+                msg[7] = '0';
+                msg[8] = 0;
+            }
+            ui_say(msg);
+            ui.force = 1;
+        }
+        if (b & (1u << ACT_KBD_OCTUP)) {
+            b &= ~(1u << ACT_KBD_OCTUP);
+            if (smk_kbd_oct < 3) smk_kbd_oct++;
+            char msg[16];
+            msg[0] = 'O'; msg[1] = 'C'; msg[2] = 'T'; msg[3] = 'A'; msg[4] = 'V'; msg[5] = 'E'; msg[6] = ' ';
+            if (smk_kbd_oct > 0) {
+                msg[7] = '+';
+                msg[8] = (char)('0' + smk_kbd_oct);
+                msg[9] = 0;
+            } else if (smk_kbd_oct < 0) {
+                msg[7] = '-';
+                msg[8] = (char)('0' + (-smk_kbd_oct));
+                msg[9] = 0;
+            } else {
+                msg[7] = '0';
+                msg[8] = 0;
+            }
+            ui_say(msg);
+            ui.force = 1;
         }
         /* Scale Mode button */
         if (b & (1u << ACT_SCALE)) {
@@ -640,10 +793,14 @@ static void zp12_main(void)
             for (id = 0; id < 14u; id++)
                 fm1_led_key(id, (lb >> id) & 1u);
             smk_led_physical(1, smk_fader_bank);
+            smk_led_physical(4, smk_kbd_oct < 0);
+            smk_led_physical(5, smk_kbd_oct > 0);
             smk_led_physical(6, ui.multi);
             smk_led_physical(7, smk_scale_mode != 0);
             smk_led_physical(8, smk_scale_mode != 0);
             smk_led_physical(9, smk_chord_mode != 0);
+            if (smk_midi_mode)
+                smk_led_physical(12, (fm1_ms / 250u) & 1u);
 
             /* WS2812 RGB Pad LEDs */
             {
