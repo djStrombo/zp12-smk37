@@ -585,6 +585,26 @@ static void ui_loop(uint32_t b)
     ui_say(m);
 }
 
+#if BOARD_SMK37
+static void smk_play_note_or_chord(uint32_t sound, uint32_t vel, int32_t note_offset)
+{
+    int32_t root = smk_quantize_note(note_offset);
+    if (!smk_chord_mode) {
+        pad_hit_at(sound, vel, root);
+        return;
+    }
+    int32_t cnotes[5];
+    uint32_t cnt = smk_get_chord_notes(root, cnotes);
+    uint32_t base_ch = SP_CH_OF(sound);
+    for (uint32_t i = 0; i < cnt; i++) {
+        sq_post(RQ_HIT_CH, sound, ((base_ch + i) % SP_NCH) | ((vel & 0x7Fu) << 3) | ((uint32_t)((cnotes[i] + 64) & 0x7Fu) << 10));
+    }
+    ui.sel = (uint8_t)sound;
+    ui.hit_ms[sound] = fm1_ms;
+    ui.chan_ms[base_ch] = fm1_ms;
+}
+#endif
+
 /* key k down; erase: LFO held (the pad's hits go: as the playhead passes, or all at once when stopped) */
 static void key_down(uint32_t k, int erase)
 {

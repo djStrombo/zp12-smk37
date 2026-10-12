@@ -280,24 +280,6 @@ static uint32_t smk_get_chord_notes(int32_t root, int32_t *notes)
         }
     }
 }
-
-static void smk_play_note_or_chord(uint32_t sound, uint32_t vel, int32_t note_offset)
-{
-    int32_t root = smk_quantize_note(note_offset);
-    if (!smk_chord_mode) {
-        pad_hit_at(sound, vel, root);
-        return;
-    }
-    int32_t cnotes[5];
-    uint32_t cnt = smk_get_chord_notes(root, cnotes);
-    uint32_t base_ch = SP_CH_OF(sound);
-    for (uint32_t i = 0; i < cnt; i++) {
-        sq_post(RQ_HIT_CH, sound, ((base_ch + i) % SP_NCH) | ((vel & 0x7Fu) << 3) | ((uint32_t)((cnotes[i] + 64) & 0x7Fu) << 10));
-    }
-    ui.sel = (uint8_t)sound;
-    ui.hit_ms[sound] = fm1_ms;
-    ui.chan_ms[base_ch] = fm1_ms;
-}
 #endif
 #include "sp_ui.c"
 #include "sp_store.c"
@@ -402,6 +384,7 @@ static void zp12_main(void)
 {
     uint32_t i, prev_notes = 0, t_frame = 0, seq_down = 0, seq_used = 0, t_sig = 0, t_change = 0, last_sig = 0, save_later = 0;
     int32_t knob_avg = 512 * 16;
+    (void)seq_down;
     for (i = 0; i < KIT_NWAVE; i++) {
         sp_wave[i].d = KIT_DATA + KIT_WAVE[i].off;
         sp_wave[i].n = KIT_WAVE[i].n;
