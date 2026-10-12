@@ -171,9 +171,9 @@ static void sq_keep_undo(sq_seg_t *s)          /* before a segment is cleared, e
 
 /* a hit now (ISR): sounds, and when recording goes into the segment at the playhead, auto-corrected; a pad
  * whose knobs are being turned records them with the hit */
-static void sq_hit(uint32_t pad, uint32_t vel, int32_t semis)
+static void sq_hit_ch(uint32_t pad, uint32_t ch, uint32_t vel, int32_t semis)
 {
-    sp_trigger_at(pad, vel, semis);
+    sp_trigger_ch_lk(pad, ch, vel, semis, 0);
     sq.played |= 1u << (pad & 31u);
     if (sq.recording && sq.playing && sq.countin <= 0) {
         sq_seg_t *s = &sq_seg[sq.seg % SQ_NSEG];
@@ -183,6 +183,11 @@ static void sq_hit(uint32_t pad, uint32_t vel, int32_t semis)
         sq_insert(s, t, pad, sq_vel_lvl(vel), semis, t > now || (t < now && now - t > len / 2u),
                   (sq.turn >> (pad & 31u)) & 1u ? sp_lock_of(&sp_sound[pad & 31u]) : 0u);
     }
+}
+
+static void sq_hit(uint32_t pad, uint32_t vel, int32_t semis)
+{
+    sq_hit_ch(pad, SP_CH_OF(pad), vel, semis);
 }
 
 static void sq_stop_rec(void)                  /* recording ends: an AUTO segment gets its length */
@@ -223,7 +228,7 @@ static void sq_play(uint32_t on)
 }
 
 /* ---- requests from the main loop (one word each: op, pad, argument) */
-enum { RQ_HIT, RQ_PLAY, RQ_STOP, RQ_REC, RQ_STEP, RQ_WIPE, RQ_CLEAR, RQ_COPY, RQ_LOOP, RQ_RECSET, RQ_UNDO };
+enum { RQ_HIT, RQ_PLAY, RQ_STOP, RQ_REC, RQ_STEP, RQ_WIPE, RQ_CLEAR, RQ_COPY, RQ_LOOP, RQ_RECSET, RQ_UNDO, RQ_HIT_CH };
 #define SQ_NRQ 64u
 static uint32_t sq_rq[SQ_NRQ];
 static volatile uint32_t sq_rq_w, sq_rq_r;
@@ -244,6 +249,13 @@ static void sq_request(uint32_t r)
     case RQ_HIT:
         sq_hit(pad, arg & 0xFFu, (int32_t)(arg >> 8) - 64);
         break;
+    case RQ_HIT_CH: {
+        uint32_t ch = arg & 7u;
+        uint32_t vel = (arg >> 3) & 0x7Fu;
+        int32_t semis = (int32_t)(arg >> 10) - 64;
+        sq_hit_ch(pad, ch, vel, semis);
+        break;
+    }
     case RQ_PLAY:
         sq_play(1);
         break;

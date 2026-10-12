@@ -75,6 +75,7 @@ static struct {
     uint32_t hit_ms[32];                        /* when each pad was last heard (its key and pad light) */
     uint32_t chan_ms[SP_NCH];
     uint32_t tap_ms[4];                         /* TAP: the last taps */
+    uint32_t tap_flash_ms;
     char msg[24];
     uint32_t msg_until;
     uint32_t sig_lcd, sig_mid, sig_pad, sig_led, sig_head;   /* what each region shows now */
@@ -643,7 +644,7 @@ static void key_down(uint32_t k, int erase)
     }
     if (ui.multi && !erase) {                    /* MULTI PITCH: the sound, F4 (key 12) as written */
 #if BOARD_SMK37
-        pad_hit_at(ui.sel, 110, smk_quantize_note((int32_t)k - 12));
+        smk_play_note_or_chord(ui.sel, 110, (int32_t)k - 12);
 #else
         pad_hit_at(ui.sel, 110, (int32_t)k - 12);
 #endif
@@ -849,12 +850,17 @@ static void page(uint32_t p) { ui.page = (uint8_t)p; ui.touch_ms = fm1_ms; ui.ar
 static void tap_tempo(void)                      /* ENV: the tempo of the last taps (two at least, < 2 s apart) */
 {
     uint32_t i, n = 0, sum = 0;
+    ui.tap_flash_ms = fm1_ms;
     for (i = 3; i; i--) ui.tap_ms[i] = ui.tap_ms[i - 1u];
     ui.tap_ms[0] = fm1_ms;
     for (i = 0; i < 3u && ui.tap_ms[i + 1u] && ui.tap_ms[i] - ui.tap_ms[i + 1u] < 2000u; i++, n++)
         sum += ui.tap_ms[i] - ui.tap_ms[i + 1u];
-    if (n && sum)
+    if (n && sum) {
         sq.bpm10 = (uint16_t)sp_clamp((int32_t)(600000u * n / sum), 400, 2400);
+        char msg[16];
+        cat(num(msg, sq.bpm10 / 10, 3, 0), " BPM");
+        ui_say(msg);
+    }
 }
 
 /* button b pressed (seq: SEQ was held at the time: OCT pages the step grid's bars) */
@@ -947,13 +953,17 @@ static uint32_t ui_holds(uint32_t held, uint32_t pressed, uint32_t released)
 static void ui_leds(uint32_t *btn, uint32_t *keys, uint32_t *glow)
 {
     uint32_t b = 0, k = 0, g = 0, i;
-    int blink = (sq.beat & 1u) == 0u, fam;
+    int blink = (sq.playing && ((sq.countin > 0) ?
+                (((sq.cin_len - (uint32_t)(sq.countin >> 16)) % SQ_PPQ) < (SQ_PPQ / 4u)) :
+                (((sq.pos >> 16) % SQ_PPQ) < (SQ_PPQ / 4u)))) ||
+                ((uint32_t)(fm1_ms - ui.tap_flash_ms) < 100u);
+    int fam;
     if (sq.playing) b |= 1u << B_PLAY;
     if (sq.recording || ((sq.rec_arm || sq.dub_wait) && (fm1_ms / 250u) & 1u)) b |= 1u << B_REC;
     if (ui.multi) b |= 1u << B_ARP;
     if (ui.shift) b |= 1u << B_SEL;
     if (sq.erase) b |= 1u << B_LFO;
-    if (sq.playing && blink) b |= 1u << B_ENV;   /* (the beat: TAP's guide) */
+    if (blink) b |= 1u << B_ENV;   /* (the beat: TAP's guide - flashes on every beat) */
     if (sq.song_mode) b |= 1u << B_SAVE;
     fam = ui.page;
     b |= 1u << (fam == PG_HOME ? B_HOME : fam <= PG_SFX ? B_EDIT : fam <= PG_REV ? B_FX : fam <= PG_SONG ? B_SEQ : B_GLO);

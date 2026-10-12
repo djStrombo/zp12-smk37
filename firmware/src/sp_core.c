@@ -154,8 +154,8 @@ static uint32_t sp_lock_of(const sp_sound_t *s)
            (uint32_t)(s->cut & 127u) << 19;
 }
 
-/* hit sound k at velocity 1..127, `semis` semitones from its TUNE (MULTI PITCH), with a hit's lock (0: none) */
-static void sp_trigger_lk(uint32_t k, uint32_t vel, int32_t semis, uint32_t lk)
+/* hit sound k at velocity 1..127, `semis` semitones from its TUNE (MULTI PITCH), on channel ch, with a hit's lock (0: none) */
+static void sp_trigger_ch_lk(uint32_t k, uint32_t ch, uint32_t vel, int32_t semis, uint32_t lk)
 {
     const sp_sound_t *s = &sp_sound[k % SP_NSOUND];
     sp_ch_t *c;
@@ -165,7 +165,7 @@ static void sp_trigger_lk(uint32_t k, uint32_t vel, int32_t semis, uint32_t lk)
     if (s->wave >= 64u || !sp_wave[s->wave].n)
         return;
     w = &sp_wave[s->wave];
-    c = &sp_ch[SP_CH_OF(k)];
+    c = &sp_ch[ch % SP_NCH];
     a = w->n / 1000u * s->start + w->n % 1000u * s->start / 1000u;   /* (32 bits, no 64-bit division) */
     b = s->end ? w->n / 1000u * s->end + w->n % 1000u * s->end / 1000u : w->n;
     if (b > w->n) b = w->n;
@@ -199,6 +199,11 @@ static void sp_trigger_lk(uint32_t k, uint32_t vel, int32_t semis, uint32_t lk)
     c->jump = (uint8_t)(c->on || ((s->flags & SPF_REVERSE) ? s->end < 1000u && s->end : s->start > 0u));
     if (!c->jump) c->dc = 0;
     c->on = 1;
+}
+
+static void sp_trigger_lk(uint32_t k, uint32_t vel, int32_t semis, uint32_t lk)
+{
+    sp_trigger_ch_lk(k, SP_CH_OF(k), vel, semis, lk);
 }
 
 static void sp_trigger_at(uint32_t k, uint32_t vel, int32_t semis) { sp_trigger_lk(k, vel, semis, 0); }

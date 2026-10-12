@@ -45,6 +45,7 @@
 #define ACT_FBANK   16  /* Fader Bank Toggle (Sounds 1-4 / 5-8) */
 #define ACT_SCALE   17  /* Scale Quantize Mode Toggle */
 #define ACT_REPEAT  18  /* Note Repeat / Roll (1/16 Beat Roll) */
+#define ACT_CHORD   19  /* Chord Mode Cycle */
 
 /* Physical button (0..17) to logical action mapping */
 static const uint8_t SMK_BTN_MAP[18] = {
@@ -57,9 +58,9 @@ static const uint8_t SMK_BTN_MAP[18] = {
     ACT_ARP      /* 6: ARP */,
     ACT_REPEAT   /* 7: NOTE REPEAT */,
     ACT_SCALE    /* 8: SCALE */,
-    ACT_ENV      /* 9: CHORD */,
+    ACT_CHORD    /* 9: CHORD */,
     ACT_GLO      /* 10: GLOBE */,
-    ACT_SAVE     /* 11: BT */,
+    ACT_ENV      /* 11: BT (Tap Tempo) */,
     ACT_HOME     /* 12: PATCH */,
     ACT_EDIT     /* 13: PARA */,
     ACT_FX       /* 14: FX */,

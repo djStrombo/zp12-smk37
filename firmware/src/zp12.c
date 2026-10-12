@@ -131,6 +131,7 @@ static void ota_commit(const uint8_t *parm)
 #if BOARD_SMK37
 static uint8_t smk_scale_mode = 0;
 static uint8_t smk_root_note = 0;
+static uint8_t smk_chord_mode = 0;
 static uint8_t smk_fader_bank = 0;
 static const char *const SCALE_NAMES[5] = {
     "SCALE: OFF",
@@ -144,10 +145,24 @@ static const char *const ROOT_NOTE_NAMES[12] = {
     "ROOT KEY: E",  "ROOT KEY: F",  "ROOT KEY: F#", "ROOT KEY: G",
     "ROOT KEY: G#", "ROOT KEY: A",  "ROOT KEY: A#", "ROOT KEY: B"
 };
+static const char *const CHORD_NAMES[7] = {
+    "CHORD: OFF",
+    "CHORD: TRIAD",
+    "CHORD: 5TH",
+    "CHORD: 7TH",
+    "CHORD: 9TH",
+    "CHORD: SUS4",
+    "CHORD: OCTAVE"
+};
 static const int8_t SCALE_SNAP_MIN[12] = { 0, 0, 2, 3, 3, 5, 5, 7, 8, 8, 10, 10 };
 static const int8_t SCALE_SNAP_MAJ[12] = { 0, 0, 2, 2, 4, 5, 5, 7, 7, 9, 9, 11 };
 static const int8_t SCALE_SNAP_PNT[12] = { 0, 0, 0, 3, 3, 5, 5, 7, 7, 7, 10, 10 };
 static const int8_t SCALE_SNAP_BLU[12] = { 0, 0, 0, 3, 3, 5, 6, 7, 7, 7, 10, 10 };
+
+static const uint8_t SCALE_DEG_MIN[7] = { 0, 2, 3, 5, 7, 8, 10 };
+static const uint8_t SCALE_DEG_MAJ[7] = { 0, 2, 4, 5, 7, 9, 11 };
+static const uint8_t SCALE_DEG_PNT[5] = { 0, 2, 4, 7, 9 };
+static const uint8_t SCALE_DEG_BLU[6] = { 0, 3, 5, 6, 7, 10 };
 
 int32_t smk_quantize_note(int32_t note_offset) {
     if (!smk_scale_mode) return note_offset;
@@ -163,6 +178,125 @@ int32_t smk_quantize_note(int32_t note_offset) {
     default: break;
     }
     return oct * 12 + semi + (int32_t)smk_root_note;
+}
+
+static int32_t smk_scale_degree_note(int32_t root, int32_t degree_offset)
+{
+    if (!smk_scale_mode) return root + degree_offset;
+    const uint8_t *deg;
+    uint32_t num_deg;
+    switch (smk_scale_mode) {
+    case 1: deg = SCALE_DEG_MIN; num_deg = 7; break;
+    case 2: deg = SCALE_DEG_MAJ; num_deg = 7; break;
+    case 3: deg = SCALE_DEG_PNT; num_deg = 5; break;
+    case 4: deg = SCALE_DEG_BLU; num_deg = 6; break;
+    default: return root + degree_offset;
+    }
+    int32_t rel = root - (int32_t)smk_root_note;
+    int32_t oct = rel / 12;
+    int32_t semi = rel % 12;
+    if (semi < 0) { semi += 12; oct--; }
+
+    int32_t idx = 0;
+    for (uint32_t i = 0; i < num_deg; i++) {
+        if (deg[i] <= semi) idx = (int32_t)i;
+    }
+    int32_t target_idx = idx + degree_offset;
+    int32_t add_oct = 0;
+    while (target_idx >= (int32_t)num_deg) {
+        target_idx -= (int32_t)num_deg;
+        add_oct++;
+    }
+    while (target_idx < 0) {
+        target_idx += (int32_t)num_deg;
+        add_oct--;
+    }
+    return (oct + add_oct) * 12 + deg[target_idx] + (int32_t)smk_root_note;
+}
+
+static uint32_t smk_get_chord_notes(int32_t root, int32_t *notes)
+{
+    notes[0] = root;
+    if (!smk_chord_mode) return 1;
+
+    if (smk_scale_mode != 0) {
+        switch (smk_chord_mode) {
+        case 1: /* TRIAD (1, 3, 5) */
+            notes[1] = smk_scale_degree_note(root, 2);
+            notes[2] = smk_scale_degree_note(root, 4);
+            return 3;
+        case 2: /* 5TH (1, 5) */
+            notes[1] = smk_scale_degree_note(root, 4);
+            return 2;
+        case 3: /* 7TH (1, 3, 5, 7) */
+            notes[1] = smk_scale_degree_note(root, 2);
+            notes[2] = smk_scale_degree_note(root, 4);
+            notes[3] = smk_scale_degree_note(root, 6);
+            return 4;
+        case 4: /* 9TH (1, 3, 5, 7, 9) */
+            notes[1] = smk_scale_degree_note(root, 2);
+            notes[2] = smk_scale_degree_note(root, 4);
+            notes[3] = smk_scale_degree_note(root, 6);
+            notes[4] = smk_scale_degree_note(root, 8);
+            return 5;
+        case 5: /* SUS4 (1, 4, 5) */
+            notes[1] = smk_scale_degree_note(root, 3);
+            notes[2] = smk_scale_degree_note(root, 4);
+            return 3;
+        case 6: /* OCTAVE (1, 8) */
+            notes[1] = root + 12;
+            return 2;
+        default: return 1;
+        }
+    } else {
+        /* Chromatic chord shapes */
+        switch (smk_chord_mode) {
+        case 1: /* TRIAD (Major) */
+            notes[1] = root + 4;
+            notes[2] = root + 7;
+            return 3;
+        case 2: /* 5TH */
+            notes[1] = root + 7;
+            return 2;
+        case 3: /* 7TH (Dominant 7) */
+            notes[1] = root + 4;
+            notes[2] = root + 7;
+            notes[3] = root + 10;
+            return 4;
+        case 4: /* 9TH */
+            notes[1] = root + 4;
+            notes[2] = root + 7;
+            notes[3] = root + 10;
+            notes[4] = root + 14;
+            return 5;
+        case 5: /* SUS4 */
+            notes[1] = root + 5;
+            notes[2] = root + 7;
+            return 3;
+        case 6: /* OCTAVE */
+            notes[1] = root + 12;
+            return 2;
+        default: return 1;
+        }
+    }
+}
+
+static void smk_play_note_or_chord(uint32_t sound, uint32_t vel, int32_t note_offset)
+{
+    int32_t root = smk_quantize_note(note_offset);
+    if (!smk_chord_mode) {
+        pad_hit_at(sound, vel, root);
+        return;
+    }
+    int32_t cnotes[5];
+    uint32_t cnt = smk_get_chord_notes(root, cnotes);
+    uint32_t base_ch = SP_CH_OF(sound);
+    for (uint32_t i = 0; i < cnt; i++) {
+        sq_post(RQ_HIT_CH, sound, ((base_ch + i) % SP_NCH) | ((vel & 0x7Fu) << 3) | ((uint32_t)((cnotes[i] + 64) & 0x7Fu) << 10));
+    }
+    ui.sel = (uint8_t)sound;
+    ui.hit_ms[sound] = fm1_ms;
+    ui.chan_ms[base_ch] = fm1_ms;
 }
 #endif
 #include "sp_ui.c"
@@ -340,6 +474,17 @@ static void zp12_main(void)
             ui_say(SCALE_NAMES[smk_scale_mode]);
             ui.force = 1;
         }
+        /* Chord Mode button */
+        if (b & (1u << ACT_CHORD)) {
+            b &= ~(1u << ACT_CHORD);
+            smk_chord_mode = (smk_chord_mode + 1) % 7;
+            if (smk_chord_mode != 0) {
+                ui.multi = 1;  /* Automatically enable multi-pitch chromatic mode */
+            }
+            smk_led_physical(9, smk_chord_mode != 0);
+            ui_say(CHORD_NAMES[smk_chord_mode]);
+            ui.force = 1;
+        }
         /* Note Repeat button: cycles Root Key for Scale Mode */
         if (b & (1u << ACT_REPEAT)) {
             b &= ~(1u << ACT_REPEAT);
@@ -515,6 +660,7 @@ static void zp12_main(void)
             smk_led_physical(6, ui.multi);
             smk_led_physical(7, smk_scale_mode != 0);
             smk_led_physical(8, smk_scale_mode != 0);
+            smk_led_physical(9, smk_chord_mode != 0);
 
             /* WS2812 RGB Pad LEDs */
             {
